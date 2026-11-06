@@ -225,7 +225,7 @@ function fmtDay(ds){ if(!ds) return ""; const d=new Date(ds+"T12:00:00+09:00"); 
  * GAS 上で開いた場合 : google.script.run
  * 外部（GitHub Pages 等）に置いた場合 : API_URL（GASウェブアプリの /exec URL）へ fetch
  *   → Googleのログイン状態（複数アカウント）に左右されない */
-const API_URL = "https://script.google.com/macros/s/AKfycbxsfy_ocpFWxXRJr97qnQmK7G8LY11TljNv7TJAauEkymNwUKeJ8qHkmAfaORAoseHUoA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwmQ40aRLneVPwRc9QqXTYgmQcwsn1_oSK47TnqUMJLiPclX3A9SR6LLzg5wRlCDTnniw/exec";
 const IN_GAS = !!(window.google&&google.script&&google.script.run);
 function apiArgs(fn,args){
   if(fn==="addObs"||fn==="addObsBatch") return args[0];
