@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<title>SF Wing Position Log</title>
+<style>
+:root{
+  --bg:#f4f5f7;--card:#fff;--ink:#14171c;--sub:#5b6370;--line:#dde1e6;
+  --acc:#0b5fff;--acc-ink:#fff;--accsoft:#e6eeff;--warn:#c2410c;--warnsoft:#fff1e6;
+  --ok:#0f7b3f;--chg:#fde68a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Segoe UI",sans-serif;font-size:15px}
+header{position:sticky;top:0;z-index:5;background:#101418;color:#fff;padding:10px 14px 0}
+header h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.02em}
+header .ev{font-size:12px;color:#aab3bf;margin-top:6px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+#ev-sel{width:auto;max-width:70%;background:#1f262e;color:#fff;border:1px solid #39424d;padding:6px 8px;font-size:14px;font-weight:700}
+#status{white-space:nowrap}
+nav{display:flex;margin-top:8px}
+nav a{flex:1;text-align:center;padding:9px 0 10px;color:#aab3bf;text-decoration:none;font-weight:600;font-size:14px;border-bottom:3px solid transparent}
+nav a.on{color:#fff;border-color:var(--acc)}
+main{max-width:1100px;margin:0 auto;padding:12px}
+section{display:none}
+section.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.card h2{font-size:13px;margin:0 0 8px;color:var(--sub);font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px}
+select,input[type=text],input[type=time],input[type=date],textarea{
+  width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+textarea{min-height:44px;resize:vertical}
+button{font:inherit;cursor:pointer}
+.sessinfo{font-size:12px;color:var(--sub);margin-top:6px}
+.cars{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}
+.car{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 2px;text-align:center;line-height:1.1;min-height:48px}
+.car b{display:block;font-size:18px}
+.car small{display:block;font-size:10px;color:var(--sub);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 2px}
+.car.done{background:#eef7f1;border-color:#a7d7b9}
+.car.done b::after{content:" ✓";font-size:11px;color:var(--ok)}
+.car.sel{background:var(--acc);border-color:var(--acc);color:#fff}
+.car.sel small{color:#dbe6ff}
+.hint{font-size:13px;background:var(--accsoft);border-radius:8px;padding:8px 10px;margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.hint button{border:1px solid var(--acc);background:#fff;color:var(--acc);border-radius:6px;padding:6px 10px;font-size:13px;white-space:nowrap}
+.grid{display:grid;gap:5px;align-items:center}
+.grid .rh{font-weight:700;color:var(--sub);text-align:center;font-size:13px}
+.grid .ch{font-size:11px;color:var(--sub);text-align:center}
+.hole{border:1px solid var(--line);background:#fff;border-radius:8px;padding:10px 0;font-size:16px;font-weight:600;text-align:center}
+.hole.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.hole.empty{visibility:hidden}
+.fwd{font-size:12px;font-weight:700;color:#c81e1e;margin:2px 0 4px;padding-left:31px}
+.fwd.right{text-align:right}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1;min-width:64px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:10px 6px;font-weight:600}
+.seg button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lbl{font-size:12px;color:var(--sub);margin:10px 0 5px;font-weight:700}
+.val{font-size:13px;color:var(--acc);font-weight:700}
+.savebar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding:14px 0 10px}
+.savebtn{width:100%;padding:15px;border:0;border-radius:12px;background:var(--acc);color:#fff;font-size:17px;font-weight:700}
+.savebtn:disabled{background:#aab3bf}
+.recent{list-style:none;margin:0;padding:0}
+.recent li{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
+.recent li:first-child{border-top:0}
+.recent li.mine b{color:var(--acc)}
+#toast button{margin-left:10px;border:1px solid #fff;background:transparent;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;pointer-events:auto}
+.recent .who{color:var(--sub);font-size:11px}
+.del{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 8px;font-size:12px;color:var(--sub);white-space:nowrap}
+.del.arm{background:var(--warn);color:#fff;border-color:var(--warn)}
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:6px 6px;text-align:center;white-space:nowrap}
+th{background:#f0f2f5;color:var(--sub);font-weight:700;font-size:12px;position:sticky;top:0}
+td.l,th.l{text-align:left}
+tr.none td{color:#b0b6bf}
+td.chg{background:var(--chg)}
+td.cfl{background:var(--warnsoft);color:var(--warn)}
+.sub{font-size:11px;color:var(--sub)}
+.dist{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.drow{display:grid;grid-template-columns:72px 1fr;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line);font-size:13px}
+.drow:first-of-type{border-top:0}
+.drow .k{font-weight:700}
+.drow .k small{display:block;font-weight:400;color:var(--sub);font-size:11px}
+.bar{display:flex;align-items:center;gap:6px}
+.bar i{display:block;height:14px;background:var(--acc);border-radius:3px;flex:none}
+.chips{display:flex;flex-wrap:wrap;gap:3px}
+.chip{font-size:11px;background:#eef1f5;border-radius:4px;padding:1px 5px}
+.tools{display:flex;gap:6px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600}
+.btn.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+.legend{font-size:11px;color:var(--sub);margin-top:8px}
+.legend span{display:inline-block;padding:0 6px;border-radius:3px;margin-right:4px}
+.edt td{padding:3px}
+.edt input{padding:7px;font-size:13px}
+.empty{color:var(--sub);font-size:13px;padding:12px;text-align:center}
+#toast{white-space:pre-line;position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#101418;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:20;max-width:90vw}
+#toast.on{opacity:1;transform:translateX(-50%)}
+#banner{display:none;background:var(--warnsoft);color:var(--warn);font-size:13px;padding:8px 12px;border-radius:8px;margin-bottom:12px}
+@media(min-width:760px){.inwrap{display:grid;grid-template-columns:1fr 1fr;gap:12px}.inwrap>div{min-width:0}}
+</style>
+</head>
+<body>
+<header>
+  <h1>SF23 Wing Position Log</h1>
+  <div class="ev"><select id="ev-sel"></select><span id="status">接続中…</span></div>
+  <nav>
+    <a href="javascript:void 0" data-v="input">入力</a>
+    <a href="javascript:void 0" data-v="summary">集計</a>
+    <a href="javascript:void 0" data-v="trend">推移</a>
+  </nav>
+</header>
+<main>
+  <div id="banner"></div>
+
+  <!-- ===== INPUT ===== -->
+  <section id="v-input">
+    <div class="card">
+      <h2>セッション</h2>
+      <select id="in-sess"></select>
+      <div class="sessinfo" id="in-sessinfo"></div>
+      <div class="sessinfo" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px"><span id="in-synced"></span><button class="btn" id="sync">公式から更新</button></div>
+      <div class="lbl">記録者（名前・任意）</div>
+      <input type="text" id="observer" placeholder="例：佐藤">
+    </div>
+    <div class="inwrap">
+      <div>
+        <div class="card">
+          <h2>車両 <span class="sub" id="in-count"></span></h2>
+          <div class="cars" id="in-cars"></div>
+          <div id="in-hint"></div>
+        </div>
+        <div class="card">
+          <h2>Front flap <span class="val" id="fv"></span></h2>
+          <div class="seg" id="f-link">
+            <button data-v="1">FL = FR</button><button data-v="0">左右別</button>
+          </div>
+          <div id="f-grids"></div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <h2>Rear flap <span class="val" id="rv"></span></h2>
+          <div id="r-grid"></div>
+          <div class="lbl">Gurney Flap (GF)</div>
+          <div class="seg" id="gf"></div>
+          <div class="lbl">Memo</div>
+          <textarea id="memo" placeholder="例：Q2前にフラップ変更、写真あり など"></textarea>
+        </div>
+        <div class="savebar"><button class="savebtn" id="save" disabled>車両を選択</button></div>
+        <div class="card">
+          <h2><span id="rc-title">このセッションの記録</span> <span class="sub" id="rc-n"></span></h2>
+          <div class="legend" style="margin:0 0 6px">間違えた記録は「削除」を2回タップで消せます（スプレッドシートの Deleted シートに退避されます）。</div>
+          <ul class="recent" id="recent"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SUMMARY ===== -->
+  <section id="v-summary">
+    <div class="card">
+      <h2>セッション</h2>
+      <select id="sm-sess"></select>
+    </div>
+    <div class="card">
+      <h2>全車ウイングポジション <span class="tools"><button class="btn" id="sm-copy">表をコピー (Excel用)</button></span></h2>
+      <div class="tblwrap"><table id="sm-tbl"></table></div>
+      <div class="legend"><span style="background:var(--chg)">黄</span>前セッションから変化　<span style="background:var(--warnsoft);color:var(--warn)">橙</span>同セッション内で記録が食い違い（最新値を表示）</div>
+    </div>
+    <div class="dist" id="sm-dist"></div>
+  </section>
+
+  <!-- ===== TREND ===== -->
+  <section id="v-trend">
+    <div class="card">
+      <h2>セッション推移 <span class="tools">
+        <span class="seg" id="tr-mode" style="flex-wrap:nowrap"></span>
+        <button class="btn" id="tr-copy">コピー</button></span></h2>
+      <div class="tblwrap"><table id="tr-tbl"></table></div>
+      <div class="legend"><span style="background:var(--chg)">黄</span>直前に記録のあるセッションから変化</div>
+    </div>
+  </section>
+
+  <p class="legend" style="text-align:center">大会・セッションは SUPER FORMULA 公式サイトから取得（毎朝自動／「公式から更新」で即時）。手動で足したいセッションや車両はスプレッドシートの「Schedule」「Cars」シートで編集できます。</p>
+</main>
+<div id="toast"></div>
+
+<script>
+/* ---------- SF23 wing hole definitions (SF23 Wing Position Check Sheet) ---------- */
+const FRONT = { rows:["A","B","C","D","E"], cols:4,
+  v:{A:[29,28,27,26],B:[25,24,23,22],C:[21,20,19,18],D:[17,16,15,14],E:[13,12,null,null]} };
+const REAR = { rows:["A","B","C","D","E"], cols:2,
+  v:{A:[21.5,23],B:[18.5,20],C:[15.5,17],D:[12.5,14],E:[9.5,11]} };
+function holeOf(def,val){ if(val==null) return ""; for(const r of def.rows){const i=def.v[r].indexOf(val); if(i>=0) return r+(i+1);} return ""; }
+const GF_OPTS=[["0","なし"],["10","10mm (2/3)"],["15","15mm (Full)"]];
+const GF_WIDTH={"10":"2/3","15":"full"}; // SF23: 10mm=2/3幅のみ, 15mm=Full幅のみ
+const GFW_OPTS=[["full","Full"],["2/3","2/3"]];
+
+/* ---------- state ---------- */
+let config=null, obs=[], loaded=false, busy=false;
+let form=blankForm();
+let trMode="both";
+function blankForm(){ return {car:null, link:true, fl:null, fr:null, rf:null, gf:null, gfw:null}; }
+const $=id=>document.getElementById(id);
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function ls(k,v){try{ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k,v);}catch(e){return null;}}
+const device=(()=>{ let d=ls("wp_device"); if(!d){ d="d"+Math.random().toString(36).slice(2,10); ls("wp_device",d);} return d; })();
+function toast(m,undoId){const t=$("toast");t.textContent=m;
+  if(undoId){ const b=document.createElement("button"); b.textContent="取り消す"; b.onclick=()=>{ t.classList.remove("on"); delObs(undoId).then(()=>toast("取り消しました")); }; t.appendChild(b); t.style.pointerEvents="auto"; } else t.style.pointerEvents="none";
+  t.classList.add("on");clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove("on"),undoId?8000:1800);}
+function fmtTime(ms){const d=new Date(ms);return d.toLocaleTimeString("ja-JP",{timeZone:"Asia/Tokyo",hour:"2-digit",minute:"2-digit"});}
+function fmtDay(ds){ if(!ds) return ""; const d=new Date(ds+"T12:00:00+09:00"); return (d.getMonth()+1)+"/"+d.getDate()+"("+"日月火水木金土"[d.getDay()]+")"; }
+/* ---- サーバー呼び出し ----
+ * GAS 上で開いた場合 : google.script.run
+ * 外部（GitHub Pages 等）に置いた場合 : API_URL（GASウェブアプリの /exec URL）へ fetch
+ *   → Googleのログイン状態（複数アカウント）に左右されない */
+const API_URL = "https://script.google.com/macros/s/AKfycbw5I4WQaFE9J4VFjbOiiRRn2AKDZgA86Ep4g5fc5P-e_CCO6UQDvwmhpW3VTxbBL7SjJA/exec";
+const IN_GAS = !!(window.google&&google.script&&google.script.run);
+function apiArgs(fn,args){
+  if(fn==="addObs") return args[0];
+  if(fn==="deleteObs") return {id:args[0],device:args[1]};
+  if(fn==="syncFromApp") return {event:args[0]};
+  return null;
+}
+function gas(fn,...args){
+  if(IN_GAS) return new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...args));
+  if(!API_URL) return Promise.reject(new Error("API_URL が未設定です"));
+  return fetch(API_URL,{method:"POST",body:JSON.stringify({api:fn,p:apiArgs(fn,args)}),redirect:"follow",credentials:"omit"})
+    .then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+    .then(j=>{ if(!j.ok) throw new Error(j.error||"サーバーエラー"); return j.data; });
+}
+
+function delObs(id){
+  return gas("deleteObs",id,device).then(st=>applyState(st)).catch(err=>{ toast("削除できませんでした（電波を確認）"); throw err; });
+}
+
+/* ---------- sessions ---------- */
+let curEvent=null, evTouched=false;
+function events(){ return (config&&Array.isArray(config.events))?config.events.slice().sort((a,b)=>a.start.localeCompare(b.start)):[]; }
+function sessions(){ return (config&&Array.isArray(config.sessions))?config.sessions.filter(s=>s.event===curEvent).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start)):[]; }
+function todayJST(){ return new Date(Date.now()+9*3600e3).toISOString().slice(0,10); }
+function autoEvent(){
+  const ev=events(); if(!ev.length) return null; const t=todayJST();
+  const cur=ev.find(e=>e.start<=t&&t<=e.end)||ev.find(e=>e.end>=t)||ev[ev.length-1];
+  return cur.id;
+}
+function fillEventSelect(){
+  const ev=events(); const sel=$("ev-sel");
+  sel.innerHTML=ev.length?ev.map(e=>`<option value="${esc(e.id)}">${esc(e.name)}（${esc(fmtDay(e.start))}〜）</option>`).join(""):`<option value="">大会未取得</option>`;
+  if(curEvent) sel.value=curEvent;
+}
+$("ev-sel").addEventListener("change",e=>{ curEvent=e.target.value; evTouched=true; inSess=null; smSess=null; sessTouched=false; form=blankForm(); renderAll(); });
+function cars(){ return (config&&Array.isArray(config.cars))?config.cars.slice().sort((a,b)=>(+a.no||999)-(+b.no||999)):[]; }
+function sessMs(s,which){ return new Date(s.date+"T"+(s[which]||"00:00")+":00+09:00").getTime(); }
+function autoSession(){
+  const list=sessions(); if(!list.length) return null;
+  const now=Date.now(), pad=30*60e3;
+  const cur=list.find(s=>now>=sessMs(s,"start")-pad && now<=sessMs(s,"end")+pad);
+  if(cur) return cur.id;
+  const next=list.find(s=>sessMs(s,"start")>now);
+  return next?next.id:list[list.length-1].id;
+}
+function sessLabel(s){ return fmtDay(s.date)+" "+s.label; }
+function fillSessSelect(sel,cur){
+  const list=sessions(); let h=""; let lastDay="";
+  for(const s of list){
+    if(s.date!==lastDay){ if(lastDay) h+="</optgroup>"; h+=`<optgroup label="${esc(fmtDay(s.date))}">`; lastDay=s.date; }
+    h+=`<option value="${esc(s.id)}">${esc(s.label)}　${esc(s.start)}–${esc(s.end)}</option>`;
+  }
+  if(lastDay) h+="</optgroup>";
+  sel.innerHTML=h||`<option value="">（この大会のスケジュールは未掲載）</option>`;
+  if(cur && list.some(s=>s.id===cur)) sel.value=cur;
+}
+let inSess=null, smSess=null, sessTouched=false;
+
+/* ---------- aggregation ---------- */
+const FIELDS=["fl","fr","rf","gf","gfw"];
+function latestFor(sessId){
+  // per car: per-field latest non-null value; conflicts flagged
+  const out={};
+  const list=obs.filter(o=>o.session===sessId).sort((a,b)=>a.at-b.at);
+  for(const o of list){
+    const c=out[o.car]||(out[o.car]={n:0,at:0,conf:{},vals:{},memo:[]});
+    c.n++; c.at=Math.max(c.at,o.at||0);
+    for(const f of FIELDS){ if(o[f]!=null && o[f]!==""){
+      if(c.vals[f]!=null && c.vals[f]!==o[f]) c.conf[f]=true;
+      c.vals[f]=o[f]; } }
+    if(o.memo) c.memo.push(o.memo);
+    if(o.driver) c.driver=o.driver;
+  }
+  return out;
+}
+function prevSessionId(sessId){
+  const list=sessions(); const i=list.findIndex(s=>s.id===sessId); return i>0?list[i-1].id:null;
+}
+function lastKnownBefore(sessId,car){
+  const list=sessions(); const i=list.findIndex(s=>s.id===sessId);
+  for(let j=i-1;j>=0;j--){ const l=latestFor(list[j].id)[car]; if(l) return {sess:list[j], v:l.vals}; }
+  return null;
+}
+function fmtF(v){ return v.fl==null&&v.fr==null?"–": (v.fl===v.fr||v.fr==null? (v.fl+"°") : (v.fl??"?")+"/"+(v.fr??"?")); }
+function fmtGF(v){ if(v.gf==null) return "–"; if(v.gf==="0") return "なし"; return v.gf+"mm "+(GF_WIDTH[v.gf]==="full"?"Full":"2/3"); }
+function shortStr(v){
+  const p=[];
+  if(v.fl!=null||v.fr!=null) p.push("F"+fmtF(v).replace("°",""));
+  if(v.rf!=null) p.push("R"+v.rf);
+  if(v.gf!=null) p.push("GF"+(v.gf==="0"?"-":v.gf));
+  return p.join(" ")||"–";
+}
+
+/* ---------- INPUT view ---------- */
+/* 車両前方の向き（SF23 Wing Position Check Sheet の図と同じ向き）
+ *  Front flap : 図の左側（列1側）が車両前方
+ *  Rear flap  : 図の右側（列2側）が車両前方 */
+function holeGrid(def,cur,key){
+  const fwd = def===FRONT ? "left" : "right";
+  let h=`<div class="fwd ${fwd}">${fwd==="left"?"◀ 車両前方（Front）":"車両前方（Front） ▶"}</div>`;
+  h+=`<div class="grid" style="grid-template-columns:26px repeat(${def.cols},1fr)"><div></div>`;
+  for(let c=1;c<=def.cols;c++) h+=`<div class="ch">${c}</div>`;
+  for(const r of def.rows){
+    h+=`<div class="rh">${r}</div>`;
+    def.v[r].forEach(v=>{ h+= v==null?`<div class="hole empty"></div>`:`<button class="hole${cur===v?" on":""}" data-k="${key}" data-v="${v}">${v}</button>`; });
+  }
+  return h+"</div>";
+}
+function segHtml(opts,cur,key){ return opts.map(([v,l])=>`<button class="${cur===v?"on":""}" data-k="${key}" data-v="${v}">${l}</button>`).join(""); }
+function renderForm(){
+  // front
+  $("f-link").querySelectorAll("button").forEach(b=>b.classList.toggle("on",(b.dataset.v==="1")===form.link));
+  if(form.link){ $("f-grids").innerHTML=`<div class="lbl">FL / FR</div>`+holeGrid(FRONT,form.fl,"fboth"); }
+  else { $("f-grids").innerHTML=`<div class="row2"><div><div class="lbl">FL</div>${holeGrid(FRONT,form.fl,"fl")}</div><div><div class="lbl">FR</div>${holeGrid(FRONT,form.fr,"fr")}</div></div>`; }
+  $("fv").textContent = form.fl==null&&form.fr==null?"" : (form.link||form.fl===form.fr ? `${form.fl}° (${holeOf(FRONT,form.fl)})` : `FL ${form.fl??"–"}° / FR ${form.fr??"–"}°`);
+  $("r-grid").innerHTML=holeGrid(REAR,form.rf,"rf");
+  $("rv").textContent = form.rf==null?"":`${form.rf}° (${holeOf(REAR,form.rf)})`;
+  $("gf").innerHTML=segHtml(GF_OPTS,form.gf,"gf");
+  const any=FIELDS.some(f=>form[f]!=null) || $("memo").value.trim();
+  const b=$("save");
+  if(busy){ b.disabled=true; b.textContent="保存中…"; }
+  else if(!loaded){ b.disabled=true; b.textContent="読み込み中…"; }
+  else if(!inSess){ b.disabled=true; b.textContent="セッションを選択"; }
+  else if(!form.car){ b.disabled=true; b.textContent="車両を選択"; }
+  else if(!any){ b.disabled=true; b.textContent="ポジションを入力"; }
+  else { b.disabled=false; b.textContent=`#${form.car} を保存`; }
+}
+function renderCars(){
+  const lat=inSess?latestFor(inSess):{};
+  const list=cars();
+  $("in-cars").innerHTML=list.length?list.map(c=>`<button class="car${lat[c.no]?" done":""}${form.car===c.no?" sel":""}" data-car="${esc(c.no)}"><b>${esc(c.no)}</b><small>${esc(c.driver||"")}</small></button>`).join(""):`<div class="empty">設定タブで車両を登録してください</div>`;
+  $("in-count").textContent=list.length?`${Object.keys(lat).filter(k=>list.some(c=>c.no===k)).length}/${list.length} 台記録済`:"";
+  // hint
+  let h="";
+  if(form.car && inSess){
+    const now=lat[form.car]; const prev=lastKnownBefore(inSess,form.car);
+    if(now) h+=`<div class="hint"><span>このセッション: <b>${esc(shortStr(now.vals))}</b> <span class="sub">${fmtTime(now.at)}・${now.n}件</span></span><button data-fill="cur">同じ値</button></div>`;
+    if(prev) h+=`<div class="hint"><span>${esc(prev.sess.label)}: <b>${esc(shortStr(prev.v))}</b></span><button data-fill="prev">同じ値</button></div>`;
+  }
+  $("in-hint").innerHTML=h;
+}
+function renderRecent(){
+  let list=obs.filter(o=>o.session===inSess).sort((a,b)=>b.at-a.at);
+  if(form.car) list=list.filter(o=>o.car===form.car);
+  $("rc-title").textContent = form.car ? `#${form.car} の記録（このセッション）` : "このセッションの記録";
+  $("rc-n").textContent=list.length?list.length+"件":"";
+  $("recent").innerHTML=list.length?list.slice(0,80).map(o=>{
+    const mine=o.device===device;
+    return `<li class="${mine?"mine":""}"><div><b>#${esc(o.car)}</b>　${esc(shortStr(o))}${o.memo?`<div class="sub">${esc(o.memo)}</div>`:""}<div class="who">${fmtTime(o.at)}・${esc(o.observer||(mine?"自分":"—"))}${mine?"（この端末）":""}</div></div><button class="del" data-del="${esc(o.id)}">削除</button></li>`;
+  }).join(""):`<li class="empty">${form.car?"この車両の記録はまだありません":"まだ記録がありません"}</li>`;
+}
+function renderSessInfo(){
+  const s=sessions().find(x=>x.id===inSess);
+  $("in-sessinfo").textContent = s ? `${fmtDay(s.date)} ${s.start}–${s.end}` + (s.note?`　${s.note}`:"") : "";
+}
+function renderInput(){ renderSessInfo(); renderCars(); renderForm(); renderRecent(); }
+
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  if(b.dataset.car!=null && b.closest("#in-cars")){ form.car = form.car===b.dataset.car?null:b.dataset.car; renderCars(); renderForm(); renderRecent(); return; }
+  if(b.closest("#f-link")){ form.link=b.dataset.v==="1"; if(form.link) form.fr=form.fl; renderForm(); return; }
+  if(b.dataset.k){
+    const k=b.dataset.k; const num=["fboth","fl","fr","rf"].includes(k); const v=num?parseFloat(b.dataset.v):b.dataset.v;
+    if(k==="fboth"){ const nv=form.fl===v?null:v; form.fl=nv; form.fr=nv; }
+    else { form[k]=form[k]===v?null:v; if(k==="gf") form.gfw=GF_WIDTH[form.gf]||null; }
+    renderForm(); return;
+  }
+  if(b.dataset.fill){
+    const src = b.dataset.fill==="cur" ? latestFor(inSess)[form.car]?.vals : lastKnownBefore(inSess,form.car)?.v;
+    if(src){ for(const f of FIELDS) form[f]=src[f]??null; form.gfw=GF_WIDTH[form.gf]||null; form.link = form.fl===form.fr; renderForm(); toast("値をセットしました"); }
+    return;
+  }
+  if(b.dataset.del){
+    if(!b.classList.contains("arm")){ b.classList.add("arm"); b.textContent="本当に削除"; setTimeout(()=>{b.classList.remove("arm");b.textContent="削除";},3000); return; }
+    b.disabled=true; b.textContent="削除中…";
+    delObs(b.dataset.del).then(()=>toast("削除しました")).catch(()=>{b.disabled=false;b.textContent="削除";});
+    return;
+  }
+});
+$("memo").addEventListener("input",renderForm);
+$("in-sess").addEventListener("change",e=>{ inSess=e.target.value; sessTouched=true; ls("wp_sess",inSess); renderInput(); });
+$("observer").value=ls("wp_observer")||"";
+$("observer").addEventListener("change",e=>ls("wp_observer",e.target.value.trim()));
+$("save").addEventListener("click",async()=>{
+  const doc={ session:inSess, car:form.car, memo:$("memo").value.trim()||null, observer:$("observer").value.trim(), device };
+  for(const f of FIELDS) doc[f]=form[f]??null;
+  if(form.link) doc.fr=doc.fl;
+  const car=form.car;
+  busy=true; renderForm();
+  try{
+    const before=new Set(obs.map(o=>o.id));
+    const st=await gas("addObs",doc);
+    busy=false;
+    const added=(st.obs||[]).filter(o=>!before.has(o.id)&&o.device===device&&o.car===car).sort((a,b)=>b.at-a.at)[0];
+    const keepLink=form.link; form=blankForm(); form.link=keepLink; $("memo").value="";
+    applyState(st);
+    toast(`#${car} 保存しました`, added&&added.id);
+  }catch(err){
+    busy=false; renderForm();
+    toast("保存に失敗しました（電波を確認して再度保存）");
+  }
+});
+
+/* ---------- SUMMARY view ---------- */
+function summaryRows(sessId){
+  const lat=latestFor(sessId); const list=cars();
+  const known=new Set(list.map(c=>c.no));
+  const extra=Object.keys(lat).filter(k=>!known.has(k)).map(no=>({no,driver:"",team:""}));
+  return list.concat(extra).map(c=>{
+    const l=lat[c.no]; const prev=lastKnownBefore(sessId,c.no);
+    return {c,l,prev};
+  });
+}
+function renderSummary(){
+  const sid=smSess;
+  const rows=summaryRows(sid);
+  const cell=(r,f,txt)=>{
+    if(!r.l) return `<td>–</td>`;
+    let cls="";
+    if(r.l.conf[f]) cls="cfl";
+    else if(r.prev && r.l.vals[f]!=null && r.prev.v[f]!=null && r.prev.v[f]!==r.l.vals[f]) cls="chg";
+    return `<td class="${cls}">${txt}</td>`;
+  };
+  let h=`<thead><tr><th>No.</th><th class="l">Driver</th><th class="l">Team</th><th>FL</th><th>FR</th><th>Rear Flap</th><th>GF</th><th>時刻</th><th>件数</th><th class="l">Memo</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const v=r.l?r.l.vals:{};
+    h+=`<tr class="${r.l?"":"none"}"><td><b>${esc(r.c.no)}</b></td><td class="l">${esc((r.l&&r.l.driver)||r.c.driver)}</td><td class="l sub">${esc(r.c.team)}</td>`+
+      cell(r,"fl", v.fl!=null?`${v.fl}° <span class="sub">${holeOf(FRONT,v.fl)}</span>`:"–")+
+      cell(r,"fr", v.fr!=null?`${v.fr}° <span class="sub">${holeOf(FRONT,v.fr)}</span>`:"–")+
+      cell(r,"rf", v.rf!=null?`${v.rf}° <span class="sub">${holeOf(REAR,v.rf)}</span>`:"–")+
+      cell(r,"gf", r.l?esc(fmtGF(v)):"–")+
+      `<td class="sub">${r.l?fmtTime(r.l.at):""}</td><td class="sub">${r.l?r.l.n:""}</td><td class="l sub">${r.l?esc(r.l.memo.slice(-2).join(" / ")):""}</td></tr>`;
+  }
+  $("sm-tbl").innerHTML=h+"</tbody>";
+  // distributions
+  const dist=(title,def,field,unit)=>{
+    const groups={};
+    for(const r of rows){ if(!r.l) continue; const v=r.l.vals[field]; if(v==null) continue; (groups[v]=groups[v]||[]).push(r.c.no); }
+    const keys=Object.keys(groups).sort((a,b)=>isNaN(a)?a.localeCompare(b):(+b)-(+a));
+    const max=Math.max(1,...keys.map(k=>groups[k].length));
+    const total=keys.reduce((s,k)=>s+groups[k].length,0);
+    const label=k=>{ if(field==="gf") return k==="0"?"なし":k+"mm"; if(field==="ext") return k==="1"?"有":"無"; return k+unit; };
+    return `<div class="card"><h2>${title} <span class="sub">${total}台</span></h2>`+
+      (keys.length?keys.map(k=>`<div class="drow"><div class="k">${label(k)}${def?`<small>${holeOf(def,+k)}</small>`:""}</div><div><div class="bar"><i style="width:${Math.round(groups[k].length/max*120)}px"></i><b>${groups[k].length}</b></div><div class="chips">${groups[k].map(n=>`<span class="chip">#${esc(n)}</span>`).join("")}</div></div></div>`).join(""):`<div class="empty">記録なし</div>`)+`</div>`;
+  };
+  $("sm-dist").innerHTML=dist("Front flap 分布（FL）",FRONT,"fl","°")+dist("Rear flap 分布",REAR,"rf","°")+dist("Gurney Flap",null,"gf","");
+}
+$("sm-sess").addEventListener("change",e=>{ smSess=e.target.value; renderSummary(); });
+async function copyText(t,msg){
+  try{ await navigator.clipboard.writeText(t); toast(msg||"コピーしました"); return; }catch(e){}
+  const ta=document.createElement("textarea"); ta.value=t; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select();
+  let ok=false; try{ ok=document.execCommand("copy"); }catch(e){}
+  ta.remove(); toast(ok?(msg||"コピーしました"):"コピーできませんでした（スプレッドシートを直接ご利用ください）");
+}
+$("sm-copy").addEventListener("click",()=>{
+  const s=sessions().find(x=>x.id===smSess);
+  const lines=[["Session","No.","Driver","Team","FL","FL hole","FR","FR hole","Rear Flap","Rear hole","GF","GF width","Time","Count","Memo"].join("\t")];
+  for(const r of summaryRows(smSess)){
+    const v=r.l?r.l.vals:{};
+    lines.push([s?sessLabel(s):"",r.c.no,(r.l&&r.l.driver)||r.c.driver,r.c.team,v.fl??"",holeOf(FRONT,v.fl),v.fr??"",holeOf(FRONT,v.fr),v.rf??"",holeOf(REAR,v.rf),
+      v.gf==null?"":(v.gf==="0"?"なし":v.gf),v.gf&&GF_WIDTH[v.gf]?(GF_WIDTH[v.gf]==="full"?"Full":"2/3"):"",r.l?fmtTime(r.l.at):"",r.l?r.l.n:"",r.l?r.l.memo.join(" / "):""].join("\t"));
+  }
+  copyText(lines.join("\n"),"表をコピーしました（Excelに貼り付け可）");
+});
+
+/* ---------- TREND view ---------- */
+const TR_MODES=[["both","F/R"],["fl","Front"],["rf","Rear"],["gf","GF"]];
+function trCell(v,mode){
+  if(!v) return "";
+  if(mode==="fl") return fmtF(v);
+  if(mode==="rf") return v.rf!=null?v.rf+"°":"–";
+  if(mode==="gf") return fmtGF(v);
+  const f=(v.fl!=null||v.fr!=null)?fmtF(v).replace("°",""):"–"; const r=v.rf!=null?v.rf:"–";
+  return f+" / "+r;
+}
+function renderTrend(){
+  $("tr-mode").innerHTML=TR_MODES.map(([k,l])=>`<button class="${trMode===k?"on":""}" data-tr="${k}">${l}</button>`).join("");
+  const ss=sessions(); const list=cars();
+  const lats=ss.map(s=>latestFor(s.id));
+  let h=`<thead><tr><th>No.</th><th class="l">Driver</th>${ss.map(s=>`<th>${esc(fmtDay(s.date))}<br>${esc(s.label)}</th>`).join("")}</tr></thead><tbody>`;
+  for(const c of list){
+    h+=`<tr><td><b>${esc(c.no)}</b></td><td class="l">${esc(c.driver)}</td>`;
+    let prev=null;
+    ss.forEach((s,i)=>{
+      const l=lats[i][c.no]; const txt=l?trCell(l.vals,trMode):"";
+      const chg = l && prev!=null && txt!==prev;
+      h+=`<td class="${chg?"chg":""}">${esc(txt)||'<span class="sub">·</span>'}</td>`;
+      if(l) prev=txt;
+    });
+    h+="</tr>";
+  }
+  $("tr-tbl").innerHTML=h+"</tbody>";
+}
+document.addEventListener("click",e=>{ const b=e.target.closest("[data-tr]"); if(b){ trMode=b.dataset.tr; renderTrend(); }});
+$("tr-copy").addEventListener("click",()=>{
+  const ss=sessions(); const lats=ss.map(s=>latestFor(s.id));
+  const lines=[["No.","Driver",...ss.map(sessLabel)].join("\t")];
+  for(const c of cars()) lines.push([c.no,c.driver,...ss.map((s,i)=>lats[i][c.no]?trCell(lats[i][c.no].vals,trMode):"")].join("\t"));
+  copyText(lines.join("\n"));
+});
+
+/* ---------- tabs ---------- */
+const VIEWS=["input","summary","trend"];
+let view=ls("wp_view")||"input";
+function route(){
+  if(!VIEWS.includes(view)) view="input";
+  VIEWS.forEach(k=>$("v-"+k).classList.toggle("on",k===view));
+  document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.v===view));
+  renderAll(); window.scrollTo(0,0);
+}
+document.querySelectorAll("nav a").forEach(a=>a.addEventListener("click",e=>{e.preventDefault(); view=a.dataset.v; ls("wp_view",view); route();}));
+
+function renderAll(){
+  if(!curEvent || !events().some(e=>e.id===curEvent)) curEvent=autoEvent();
+  fillEventSelect();
+  const ev=events().find(e=>e.id===curEvent);
+  $("in-synced").textContent = ev ? (ev.synced?`公式スケジュール取得: ${ev.synced}`:"公式スケジュール未取得") : "";
+  if(!inSess || !sessions().some(s=>s.id===inSess)){
+    const saved=ls("wp_sess"); inSess = (saved && sessions().some(s=>s.id===saved) && sessTouched) ? saved : autoSession();
+  }
+  if(!smSess || !sessions().some(s=>s.id===smSess)) smSess=inSess;
+  fillSessSelect($("in-sess"),inSess); fillSessSelect($("sm-sess"),smSess);
+  renderInput(); renderSummary(); renderTrend();
+}
+
+/* ---------- boot / sync ---------- */
+$("sync").addEventListener("click",async()=>{
+  const b=$("sync"); b.disabled=true; b.textContent="取得中…";
+  try{ const st=await gas("syncFromApp",curEvent||""); applyState(st); toast(st.message||"更新しました"); }
+  catch(e){ toast("取得できませんでした: "+(e&&e.message||"")); }
+  b.disabled=false; b.textContent="公式から更新";
+});
+function setStatus(t){ $("status").textContent=t; }
+function banner(t){ const b=$("banner"); b.style.display=t?"block":"none"; b.textContent=t||""; }
+function applyState(st){
+  config={name:st.name,events:st.events||[],sessions:st.sessions,cars:st.cars};
+  obs=st.obs||[]; loaded=true;
+  setStatus("更新 "+fmtTime(Date.now())); banner(config.events.length?"":"大会一覧がありません。「公式から更新」を押してください。");
+  renderAll();
+}
+let failCount=0;
+async function refresh(){
+  if(busy) return;
+  try{ applyState(await gas("getState")); failCount=0; }
+  catch(e){ failCount++; setStatus("未同期"); if(failCount>=2||!loaded) banner("サーバーに接続できません。電波を確認してください"+(loaded?"（表示は最後に取得した内容です）":"")); }
+}
+renderForm(); route(); refresh();
+setInterval(()=>{ if(document.visibilityState==="visible") refresh(); },15000);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") refresh(); });
+setInterval(()=>{ if(!sessTouched){ const a=autoSession(); if(a&&a!==inSess){ inSess=a; renderAll(); } } },60000);
+</script>
+</body>
+</html>
