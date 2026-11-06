@@ -37,6 +37,9 @@ button{font:inherit;cursor:pointer}
 .car b{display:block;font-size:18px}
 .car small{display:block;font-size:10px;color:var(--sub);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 2px}
 .car.done{background:#eef7f1;border-color:#a7d7b9}
+.car.pend{background:#fff4e5;border-color:#f5b971}
+.car.pend b::after{content:" ●";font-size:10px;color:#e07b00}
+.pendcard{border-color:#f5b971;background:#fffaf2}
 .car.done b::after{content:" ✓";font-size:11px;color:var(--ok)}
 .car.sel{background:var(--acc);border-color:var(--acc);color:#fff}
 .car.sel small{color:#dbe6ff}
@@ -66,7 +69,7 @@ button{font:inherit;cursor:pointer}
 #toast button{margin-left:10px;border:1px solid #fff;background:transparent;color:#fff;border-radius:6px;padding:4px 10px;font-size:13px;pointer-events:auto}
 .recent .who{color:var(--sub);font-size:11px}
 .del{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 8px;font-size:12px;color:var(--sub);white-space:nowrap}
-.del.arm{background:var(--warn);color:#fff;border-color:var(--warn)}
+.del.arm,.btn.arm{background:var(--warn);color:#fff;border-color:var(--warn)}
 .tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{border-bottom:1px solid var(--line);padding:6px 6px;text-align:center;white-space:nowrap}
@@ -147,6 +150,12 @@ td.cfl{background:var(--warnsoft);color:var(--warn)}
           <textarea id="memo" placeholder="例：Q2前にフラップ変更、写真あり など"></textarea>
         </div>
         <div class="savebar"><button class="savebtn" id="save" disabled>車両を選択</button></div>
+        <div class="card pendcard" id="pendcard" style="display:none">
+          <h2><span>未保存リスト <span class="sub" id="pend-n"></span></span><button class="btn" id="pend-clear">全部取り消し</button></h2>
+          <ul class="recent" id="pend-list"></ul>
+          <button class="savebtn" id="pend-save" style="margin-top:10px;background:var(--ok)">まとめて保存</button>
+          <div class="legend">リストはこの端末に保持されます。電波が悪くても入力を続け、つながる場所で保存できます。</div>
+        </div>
         <div class="card">
           <h2><span id="rc-title">このセッションの記録</span> <span class="sub" id="rc-n"></span></h2>
           <div class="legend" style="margin:0 0 6px">間違えた記録は「削除」を2回タップで消せます（スプレッドシートの Deleted シートに退避されます）。</div>
@@ -198,6 +207,8 @@ const GFW_OPTS=[["full","Full"],["2/3","2/3"]];
 
 /* ---------- state ---------- */
 let config=null, obs=[], loaded=false, busy=false;
+let pending=[]; try{ pending=JSON.parse(ls("wp_pending")||"[]")||[]; }catch(e){ pending=[]; }
+function savePending(){ ls("wp_pending",JSON.stringify(pending)); }
 let form=blankForm();
 let trMode="both";
 function blankForm(){ return {car:null, link:true, fl:null, fr:null, rf:null, gf:null, gfw:null}; }
@@ -214,10 +225,10 @@ function fmtDay(ds){ if(!ds) return ""; const d=new Date(ds+"T12:00:00+09:00"); 
  * GAS 上で開いた場合 : google.script.run
  * 外部（GitHub Pages 等）に置いた場合 : API_URL（GASウェブアプリの /exec URL）へ fetch
  *   → Googleのログイン状態（複数アカウント）に左右されない */
-const API_URL = "https://script.google.com/macros/s/AKfycbw5I4WQaFE9J4VFjbOiiRRn2AKDZgA86Ep4g5fc5P-e_CCO6UQDvwmhpW3VTxbBL7SjJA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyveKfuAF1t_s6sMOxZE8Ul_8Ps-8ydWraMvG-Ysh4aXMbhqaAuqURRRCK-pMjJTo04HA/exec";
 const IN_GAS = !!(window.google&&google.script&&google.script.run);
 function apiArgs(fn,args){
-  if(fn==="addObs") return args[0];
+  if(fn==="addObs"||fn==="addObsBatch") return args[0];
   if(fn==="deleteObs") return {id:args[0],device:args[1]};
   if(fn==="syncFromApp") return {event:args[0]};
   return null;
@@ -237,11 +248,14 @@ function delObs(id){
 /* ---------- sessions ---------- */
 let curEvent=null, evTouched=false;
 function events(){ return (config&&Array.isArray(config.events))?config.events.slice().sort((a,b)=>a.start.localeCompare(b.start)):[]; }
+function sessionsAll(){ return (config&&Array.isArray(config.sessions))?config.sessions:[]; }
 function sessions(){ return (config&&Array.isArray(config.sessions))?config.sessions.filter(s=>s.event===curEvent).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start)):[]; }
 function todayJST(){ return new Date(Date.now()+9*3600e3).toISOString().slice(0,10); }
 function autoEvent(){
   const ev=events(); if(!ev.length) return null; const t=todayJST();
-  const cur=ev.find(e=>e.start<=t&&t<=e.end)||ev.find(e=>e.end>=t)||ev[ev.length-1];
+  // 開催期間 ＝ 設営日（初日の前日）〜最終日
+  const startOf=e=>{ const s=sessionsAll().filter(x=>x.event===e.id).map(x=>x.date).sort()[0]; return s&&s<e.start?s:e.start; };
+  const cur=ev.find(e=>startOf(e)<=t&&t<=e.end)||ev.find(e=>e.end>=t)||ev[ev.length-1];
   return cur.id;
 }
 function fillEventSelect(){
@@ -250,7 +264,18 @@ function fillEventSelect(){
   if(curEvent) sel.value=curEvent;
 }
 $("ev-sel").addEventListener("change",e=>{ curEvent=e.target.value; evTouched=true; inSess=null; smSess=null; sessTouched=false; form=blankForm(); renderAll(); });
-function cars(){ return (config&&Array.isArray(config.cars))?config.cars.slice().sort((a,b)=>(+a.no||999)-(+b.no||999)):[]; }
+/* 車両リスト：選択中の大会のエントリー（公式結果／前大会から引継ぎ／手動）→ 無ければ Cars シート */
+function eventEntries(){ return (config&&Array.isArray(config.entries))?config.entries.filter(e=>e.event===curEvent):[]; }
+function cars(){
+  const ent=eventEntries();
+  const src = ent.length ? ent.map(e=>({no:e.no,driver:e.driver,team:e.team,kind:e.kind})) : ((config&&Array.isArray(config.cars))?config.cars:[]);
+  return src.slice().sort((a,b)=>(+a.no||999)-(+b.no||999));
+}
+function entrySourceLabel(){
+  const ent=eventEntries(); if(!ent.length) return "Carsシート";
+  const k=ent.map(e=>e.kind); const prev=k.find(x=>/^前大会/.test(x));
+  return prev ? prev.replace(/^前大会\((.*)\)$/,"$1 の実績を引継ぎ") : "この大会の公式結果";
+}
 function sessMs(s,which){ return new Date(s.date+"T"+(s[which]||"00:00")+":00+09:00").getTime(); }
 function autoSession(){
   const list=sessions(); if(!list.length) return null;
@@ -335,22 +360,24 @@ function renderForm(){
   $("gf").innerHTML=segHtml(GF_OPTS,form.gf,"gf");
   const any=FIELDS.some(f=>form[f]!=null) || $("memo").value.trim();
   const b=$("save");
-  if(busy){ b.disabled=true; b.textContent="保存中…"; }
-  else if(!loaded){ b.disabled=true; b.textContent="読み込み中…"; }
-  else if(!inSess){ b.disabled=true; b.textContent="セッションを選択"; }
+  if(!inSess){ b.disabled=true; b.textContent="セッションを選択"; }
   else if(!form.car){ b.disabled=true; b.textContent="車両を選択"; }
   else if(!any){ b.disabled=true; b.textContent="ポジションを入力"; }
-  else { b.disabled=false; b.textContent=`#${form.car} を保存`; }
+  else { b.disabled=false; b.textContent = pending.some(p=>p.session===inSess&&p.car===form.car) ? `#${form.car} をリストで上書き` : `＋ #${form.car} をリストに追加`; }
 }
 function renderCars(){
   const lat=inSess?latestFor(inSess):{};
   const list=cars();
-  $("in-cars").innerHTML=list.length?list.map(c=>`<button class="car${lat[c.no]?" done":""}${form.car===c.no?" sel":""}" data-car="${esc(c.no)}"><b>${esc(c.no)}</b><small>${esc(c.driver||"")}</small></button>`).join(""):`<div class="empty">設定タブで車両を登録してください</div>`;
-  $("in-count").textContent=list.length?`${Object.keys(lat).filter(k=>list.some(c=>c.no===k)).length}/${list.length} 台記録済`:"";
+  $("in-cars").innerHTML=list.length?list.map(c=>`<button class="car${lat[c.no]?" done":""}${pending.some(p=>p.session===inSess&&p.car===c.no)?" pend":""}${form.car===c.no?" sel":""}" data-car="${esc(c.no)}"><b>${esc(c.no)}</b><small>${/要確認/.test(c.kind||"")?"⚠":""}${esc(c.driver||"")}</small></button>`).join(""):`<div class="empty">設定タブで車両を登録してください</div>`;
+  $("in-count").textContent=list.length?`${Object.keys(lat).filter(k=>list.some(c=>c.no===k)).length}/${list.length} 台記録済・${entrySourceLabel()}`:"";
   // hint
   let h="";
   if(form.car && inSess){
     const now=lat[form.car]; const prev=lastKnownBefore(inSess,form.car);
+    const ce=cars().find(c=>c.no===form.car);
+    if(ce&&/要確認/.test(ce.kind||"")) h+=`<div class="hint" style="background:var(--warnsoft);color:var(--warn)"><span>⚠ ${esc(ce.driver)}：前大会のみ出走（代役の可能性）。公式エントリーで要確認</span></div>`;
+    const pe=pending.find(p=>p.session===inSess&&p.car===form.car);
+    if(pe) h+=`<div class="hint" style="background:#fff4e5"><span>未保存リスト: <b>${esc(shortStr(pe))}</b></span><button data-fill="pend">同じ値</button></div>`;
     if(now) h+=`<div class="hint"><span>このセッション: <b>${esc(shortStr(now.vals))}</b> <span class="sub">${fmtTime(now.at)}・${now.n}件</span></span><button data-fill="cur">同じ値</button></div>`;
     if(prev) h+=`<div class="hint"><span>${esc(prev.sess.label)}: <b>${esc(shortStr(prev.v))}</b></span><button data-fill="prev">同じ値</button></div>`;
   }
@@ -370,7 +397,7 @@ function renderSessInfo(){
   const s=sessions().find(x=>x.id===inSess);
   $("in-sessinfo").textContent = s ? `${fmtDay(s.date)} ${s.start}–${s.end}` + (s.note?`　${s.note}`:"") : "";
 }
-function renderInput(){ renderSessInfo(); renderCars(); renderForm(); renderRecent(); }
+function renderInput(){ renderSessInfo(); renderCars(); renderForm(); renderPending(); renderRecent(); }
 
 document.addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b) return;
@@ -383,7 +410,7 @@ document.addEventListener("click",e=>{
     renderForm(); return;
   }
   if(b.dataset.fill){
-    const src = b.dataset.fill==="cur" ? latestFor(inSess)[form.car]?.vals : lastKnownBefore(inSess,form.car)?.v;
+    const src = b.dataset.fill==="pend" ? pending.find(p=>p.session===inSess&&p.car===form.car) : b.dataset.fill==="cur" ? latestFor(inSess)[form.car]?.vals : lastKnownBefore(inSess,form.car)?.v;
     if(src){ for(const f of FIELDS) form[f]=src[f]??null; form.gfw=GF_WIDTH[form.gf]||null; form.link = form.fl===form.fr; renderForm(); toast("値をセットしました"); }
     return;
   }
@@ -398,23 +425,45 @@ $("memo").addEventListener("input",renderForm);
 $("in-sess").addEventListener("change",e=>{ inSess=e.target.value; sessTouched=true; ls("wp_sess",inSess); renderInput(); });
 $("observer").value=ls("wp_observer")||"";
 $("observer").addEventListener("change",e=>ls("wp_observer",e.target.value.trim()));
-$("save").addEventListener("click",async()=>{
-  const doc={ session:inSess, car:form.car, memo:$("memo").value.trim()||null, observer:$("observer").value.trim(), device };
+$("save").addEventListener("click",()=>{
+  const doc={ cid:"c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), at:Date.now(),
+    session:inSess, car:form.car, memo:$("memo").value.trim()||null, observer:$("observer").value.trim(), device };
   for(const f of FIELDS) doc[f]=form[f]??null;
   if(form.link) doc.fr=doc.fl;
-  const car=form.car;
-  busy=true; renderForm();
+  pending=pending.filter(p=>!(p.session===doc.session&&p.car===doc.car));   // 同じ車両は上書き
+  pending.push(doc); savePending();
+  const keepLink=form.link; form=blankForm(); form.link=keepLink; $("memo").value="";
+  renderInput(); toast(`#${doc.car} をリストに追加（未保存 ${pending.length}台）`);
+});
+function renderPending(){
+  const card=$("pendcard"); card.style.display=pending.length?"":"none";
+  $("pend-n").textContent=pending.length?`${pending.length}台`:"";
+  const sl=id=>{ const s=sessionsAll().find(x=>x.id===id); return s?s.label:""; };
+  $("pend-list").innerHTML=pending.map(p=>`<li><div><b>#${esc(p.car)}</b>　${esc(shortStr(p))}${p.session!==inSess?` <span class="sub">(${esc(sl(p.session))})</span>`:""}${p.memo?`<div class="sub">${esc(p.memo)}</div>`:""}<div class="who">${fmtTime(p.at)} 入力</div></div><button class="del" data-pdel="${esc(p.cid)}">✕</button></li>`).join("");
+  const b=$("pend-save"); b.disabled=busy||!pending.length;
+  b.textContent = busy ? "保存中…" : `まとめて保存（${pending.length}台）`;
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-pdel]"); if(!b) return;
+  pending=pending.filter(p=>p.cid!==b.dataset.pdel); savePending(); renderInput();
+});
+$("pend-clear").addEventListener("click",e=>{
+  const b=e.currentTarget;
+  if(!b.classList.contains("arm")){ b.classList.add("arm"); b.textContent="本当に取り消す"; setTimeout(()=>{b.classList.remove("arm");b.textContent="全部取り消し";},3000); return; }
+  pending=[]; savePending(); b.classList.remove("arm"); b.textContent="全部取り消し"; renderInput();
+});
+$("pend-save").addEventListener("click",async()=>{
+  if(!pending.length) return;
+  const batch=pending.slice(); busy=true; renderPending();
   try{
-    const before=new Set(obs.map(o=>o.id));
-    const st=await gas("addObs",doc);
-    busy=false;
-    const added=(st.obs||[]).filter(o=>!before.has(o.id)&&o.device===device&&o.car===car).sort((a,b)=>b.at-a.at)[0];
-    const keepLink=form.link; form=blankForm(); form.link=keepLink; $("memo").value="";
-    applyState(st);
-    toast(`#${car} 保存しました`, added&&added.id);
+    const st=await gas("addObsBatch",batch);
+    const sent=new Set(batch.map(p=>p.cid));
+    pending=pending.filter(p=>!sent.has(p.cid)); savePending();
+    busy=false; applyState(st);
+    toast(`${batch.length}台を保存しました`);
   }catch(err){
-    busy=false; renderForm();
-    toast("保存に失敗しました（電波を確認して再度保存）");
+    busy=false; renderPending();
+    toast("保存できませんでした。リストは残っているので、電波の良い所で再度「まとめて保存」してください");
   }
 });
 
@@ -550,7 +599,7 @@ $("sync").addEventListener("click",async()=>{
 function setStatus(t){ $("status").textContent=t; }
 function banner(t){ const b=$("banner"); b.style.display=t?"block":"none"; b.textContent=t||""; }
 function applyState(st){
-  config={name:st.name,events:st.events||[],sessions:st.sessions,cars:st.cars};
+  config={name:st.name,events:st.events||[],sessions:st.sessions,cars:st.cars,entries:st.entries||[]};
   obs=st.obs||[]; loaded=true;
   setStatus("更新 "+fmtTime(Date.now())); banner(config.events.length?"":"大会一覧がありません。「公式から更新」を押してください。");
   renderAll();
